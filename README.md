@@ -715,6 +715,6 @@ SQLite 表：
 抖音评论数据库路径 = data/douyin_live.db
 ```
 
-采集端建议使用 DyHub 的浏览器/CDP模式。启动 DyHub 后，DouyinLiveRecorder 检测到抖音直播正在开播时会自动连接对应房间并开始写库。
+采集端建议使用 DyHub 的浏览器/CDP模式。Windows 可直接双击 `tools/start_douyin_monitor.bat` 一键安装并启动固定版本的采集服务。启动后，DouyinLiveRecorder 检测到抖音直播正在开播时会自动连接对应房间并开始写库。
 
 > 注意：这里只能保证从开始监听之后持续保存。程序没有监听到的历史评论，不能保证事后完整补抓。
