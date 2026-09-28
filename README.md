@@ -1,3 +1,14 @@
+# 郑老师魔改版 DouyinLiveRecorder
+
+> **版本：v1.0.0**  
+> **构建编号：ZL-DLR-20260928-01**  
+> **基础版本：DouyinLiveRecorder v4.0.7**  
+> **魔改仓库：cn20004/DouyinLiveRecorder**
+
+本分支不是原版直接镜像，而是“郑老师魔改版”。启动程序时会在控制台明确显示名称、版本、构建编号和魔改功能菜单。
+
+---
+
 ![video_spider](https://socialify.git.ci/ihmily/DouyinLiveRecorder/image?font=Inter&forks=1&language=1&owner=1&pattern=Circuit%20Board&stargazers=1&theme=Light)
 
 ## 💡简介
