@@ -135,15 +135,55 @@ def remove_emojis(text: str, replace_text: str = '') -> str:
     return emoji_pattern.sub(replace_text, text)
 
 
+def atomic_write_text(file_path: str | Path, content: str, encoding: str = 'utf-8-sig',
+                      keep_last_good: bool = True) -> None:
+    """Crash-safe text write.
+
+    Writes to a temporary file in the same directory, fsyncs it, then atomically
+    replaces the destination. A non-empty previous version is also preserved as
+    <filename>.last_good so an interrupted reboot can be recovered automatically.
+    """
+    target = Path(file_path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = target.with_name(f'.{target.name}.{os.getpid()}.{random.randint(100000, 999999)}.tmp')
+    backup_path = target.with_name(target.name + '.last_good')
+    try:
+        with open(temp_path, 'w', encoding=encoding, newline='') as output_file:
+            output_file.write(content)
+            output_file.flush()
+            os.fsync(output_file.fileno())
+
+        if keep_last_good and target.exists() and target.stat().st_size > 0:
+            backup_tmp = backup_path.with_name(backup_path.name + '.tmp')
+            shutil.copy2(target, backup_tmp)
+            os.replace(backup_tmp, backup_path)
+
+        os.replace(temp_path, target)
+    finally:
+        try:
+            if temp_path.exists():
+                temp_path.unlink()
+        except OSError:
+            pass
+
+
 def remove_duplicate_lines(file_path: str | Path) -> None:
+    target = Path(file_path)
+    if not target.exists():
+        return
+
     unique_lines = OrderedDict()
     text_encoding = 'utf-8-sig'
-    with open(file_path, 'r', encoding=text_encoding) as input_file:
+    with open(target, 'r', encoding=text_encoding) as input_file:
         for line in input_file:
             unique_lines[line.strip()] = None
-    with open(file_path, 'w', encoding=text_encoding) as output_file:
-        for line in unique_lines:
-            output_file.write(line + '\n')
+
+    content = ''.join(line + '\n' for line in unique_lines)
+    # Never destroy a non-empty URL list because of a transient read/write failure.
+    if target.stat().st_size > 0 and not content.strip():
+        logger.warning(f'Skip writing empty content to non-empty file: {target}')
+        return
+    atomic_write_text(target, content, encoding=text_encoding)
 
 
 def check_disk_capacity(file_path: str | Path, show: bool = False) -> float:
@@ -190,8 +230,7 @@ def replace_url(file_path: str | Path, old: str, new: str) -> None:
     with open(file_path, 'r', encoding='utf-8-sig') as f:
         content = f.read()
     if old in content:
-        with open(file_path, 'w', encoding='utf-8-sig') as f:
-            f.write(content.replace(old, new))
+        atomic_write_text(file_path, content.replace(old, new), encoding='utf-8-sig')
 
 
 def get_query_params(url: str, param_name: OptionalStr) -> dict | list[str]:
