@@ -1913,7 +1913,7 @@ while True:
     delete_origin_file = options.get(read_config_value(config, '录制设置', '追加格式后删除原文件', "否"), False)
     create_time_file = options.get(read_config_value(config, '录制设置', '生成时间字幕文件', "否"), False)
     douyin_monitor_enabled = options.get(
-        read_config_value(config, '录制设置', '抖音评论和人数采集(是/否)', "否"), False
+        read_config_value(config, '录制设置', '抖音评论和人数采集(是/否)', "是"), True
     )
     douyin_monitor_url = read_config_value(
         config, '录制设置', '抖音评论采集服务地址', "http://127.0.0.1:8757"
