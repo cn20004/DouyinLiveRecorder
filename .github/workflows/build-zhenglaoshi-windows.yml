@@ -57,7 +57,7 @@ jobs:
           if (Test-Path "config\URL_config.ini") { Copy-Item "config\URL_config.ini" "$dist\config\URL_config.ini" -Force } else { New-Item "$dist\config\URL_config.ini" -ItemType File | Out-Null }
           Copy-Item "tools\start_douyin_monitor.bat" "$dist\tools\start_douyin_monitor.bat" -Force
           if (Test-Path "src\javascript") { New-Item -ItemType Directory -Force -Path "$dist\src" | Out-Null; Copy-Item "src\javascript" "$dist\src\javascript" -Recurse -Force }
-          if (Test-Path "README.md") { Copy-Item "README.md" "$dist\README-郑老师魔改版.md" -Force }
+          if (Test-Path "README.md") { Copy-Item "README.md" "$dist\README-Zhenglaoshi-Mod.md" -Force }
           $guide = @("郑老师魔改版 DouyinLiveRecorder","版本：v1.0.0","构建编号：ZL-DLR-20260928-01","基础版本：DouyinLiveRecorder v4.0.7","","运行：","1. 双击 DouyinLiveRecorder-Zhenglaoshi-v1.0.0.exe","2. 直播地址填写在 config\URL_config.ini","3. 抖音评论/人数采集默认开启","4. 评论采集服务可双击 tools\start_douyin_monitor.bat 启动","5. 评论数据库默认位于 data\douyin_live.db")
           $guide | Set-Content -Path "$dist\郑老师魔改版-使用说明.txt" -Encoding UTF8
 
@@ -73,12 +73,12 @@ jobs:
       - name: Create ZIP package
         shell: powershell
         run: |
-          Compress-Archive -Path "dist\DouyinLiveRecorder-Zhenglaoshi-v1.0.0\*" -DestinationPath "DouyinLiveRecorder-郑老师魔改版-v1.0.0-Windows-x64.zip" -Force
+          Compress-Archive -Path "dist\DouyinLiveRecorder-Zhenglaoshi-v1.0.0\*" -DestinationPath "DouyinLiveRecorder-Zhenglaoshi-Mod-v1.0.0-Windows-x64.zip" -Force
 
       - name: Upload Windows package
         uses: actions/upload-artifact@v4
         with:
-          name: DouyinLiveRecorder-郑老师魔改版-v1.0.0-Windows-x64
-          path: DouyinLiveRecorder-郑老师魔改版-v1.0.0-Windows-x64.zip
+          name: DouyinLiveRecorder-Zhenglaoshi-Mod-v1.0.0-Windows-x64
+          path: DouyinLiveRecorder-Zhenglaoshi-Mod-v1.0.0-Windows-x64.zip
           if-no-files-found: error
           retention-days: 30
