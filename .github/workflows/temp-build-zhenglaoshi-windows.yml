@@ -1,0 +1,75 @@
+name: TEMP Build Zhenglaoshi Mod Windows EXE
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/temp-build-zhenglaoshi-windows.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout mod branch
+        uses: actions/checkout@v4
+        with:
+          ref: zhenglaoshi-url-config-safety
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        shell: powershell
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build EXE
+        shell: powershell
+        run: |
+          pyinstaller --noconfirm --clean --console --onedir --name "DouyinLiveRecorder-Zhenglaoshi-v1.0.0" --collect-all httpx --collect-all loguru --collect-all Crypto --hidden-import "src.douyin_live_monitor" main.py
+
+      - name: Copy runtime files
+        shell: powershell
+        run: |
+          $dist = "dist\DouyinLiveRecorder-Zhenglaoshi-v1.0.0"
+          New-Item -ItemType Directory -Force -Path "$dist\config" | Out-Null
+          New-Item -ItemType Directory -Force -Path "$dist\tools" | Out-Null
+          New-Item -ItemType Directory -Force -Path "$dist\data" | Out-Null
+          New-Item -ItemType Directory -Force -Path "$dist\backup_config" | Out-Null
+          New-Item -ItemType Directory -Force -Path "$dist\downloads" | Out-Null
+          Copy-Item "config\config.ini" "$dist\config\config.ini" -Force
+          if (Test-Path "config\URL_config.ini") { Copy-Item "config\URL_config.ini" "$dist\config\URL_config.ini" -Force } else { New-Item "$dist\config\URL_config.ini" -ItemType File | Out-Null }
+          Copy-Item "tools\start_douyin_monitor.bat" "$dist\tools\start_douyin_monitor.bat" -Force
+          if (Test-Path "src\javascript") { New-Item -ItemType Directory -Force -Path "$dist\src" | Out-Null; Copy-Item "src\javascript" "$dist\src\javascript" -Recurse -Force }
+          Copy-Item "README.md" "$dist\README-郑老师魔改版.md" -Force
+          @("郑老师魔改版 DouyinLiveRecorder","版本：v1.0.0","构建编号：ZL-DLR-20260928-01","基础版本：DouyinLiveRecorder v4.0.7","","双击 DouyinLiveRecorder-Zhenglaoshi-v1.0.0.exe 运行。","直播地址：config\URL_config.ini","评论数据库：data\douyin_live.db","评论采集服务：tools\start_douyin_monitor.bat") | Set-Content "$dist\郑老师魔改版-使用说明.txt" -Encoding UTF8
+
+      - name: Verify EXE exists
+        shell: powershell
+        run: |
+          $exe = "dist\DouyinLiveRecorder-Zhenglaoshi-v1.0.0\DouyinLiveRecorder-Zhenglaoshi-v1.0.0.exe"
+          if (!(Test-Path $exe)) { throw "EXE missing" }
+          Get-Item $exe | Format-List Name,Length,FullName
+
+      - name: Zip package
+        shell: powershell
+        run: |
+          Compress-Archive -Path "dist\DouyinLiveRecorder-Zhenglaoshi-v1.0.0\*" -DestinationPath "DouyinLiveRecorder-郑老师魔改版-v1.0.0-Windows-x64.zip" -Force
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DouyinLiveRecorder-郑老师魔改版-v1.0.0-Windows-x64
+          path: DouyinLiveRecorder-郑老师魔改版-v1.0.0-Windows-x64.zip
+          retention-days: 30
