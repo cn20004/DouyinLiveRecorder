@@ -39,7 +39,11 @@ from ffmpeg_install import (
     check_ffmpeg, ffmpeg_path, current_env_path
 )
 
-version = "v4.0.7"
+BASE_VERSION = "v4.0.7"
+MOD_NAME = "郑老师魔改版"
+MOD_VERSION = "v1.0.0"
+MOD_BUILD = "ZL-DLR-20260928-01"
+version = f"{BASE_VERSION} / {MOD_NAME} {MOD_VERSION}"
 platforms = ("\n国内站点：抖音|快手|虎牙|斗鱼|YY|B站|小红书|bigo|blued|网易CC|千度热播|猫耳FM|Look|TwitCasting|百度|微博|"
              "酷狗|花椒|流星|Acfun|畅聊|映客|音播|知乎|嗨秀|VV星球|17Live|浪Live|漂漂|六间房|乐嗨|花猫|淘宝|京东|咪咕|连接|来秀"
              "\n海外站点：TikTok|SOOP|PandaTV|WinkTV|FlexTV|PopkonTV|TwitchTV|LiveMe|ShowRoom|CHZZK|Shopee|"
@@ -98,6 +102,7 @@ def display_info() -> None:
             time.sleep(5)
             if Path(sys.executable).name != 'pythonw.exe':
                 os.system(clear_command)
+            print(f"【{MOD_NAME} {MOD_VERSION}】构建编号: {MOD_BUILD}")
             print(f"\r共监测{monitoring}个直播中", end=" | ")
             print(f"同一时间访问网络的线程数: {max_request}", end=" | ")
             print(f"是否开启代理录制: {'是' if use_proxy else '否'}", end=" | ")
@@ -1797,13 +1802,34 @@ def check_ffmpeg_existence() -> bool:
     return False
 
 
+def print_mod_menu() -> None:
+    """Display an unmistakable Zhenglaoshi mod identity and feature menu."""
+    print("=" * 61)
+    print(f"  {MOD_NAME}  {MOD_VERSION}")
+    print(f"  构建编号：{MOD_BUILD}")
+    print(f"  基础版本：DouyinLiveRecorder {BASE_VERSION}")
+    print("=" * 61)
+    print("【郑老师魔改功能菜单】")
+    print("  [01] URL_config 防死机清空 / 原子写入")
+    print("  [02] URL_config .last_good + 历史备份自动恢复")
+    print("  [03] 抖音直播评论实时采集")
+    print("  [04] 抖音直播在线人数 / 累计观看历史")
+    print("  [05] 评论、礼物、进房、点赞、关注 SQLite 持久化")
+    print("  [06] 评论采集断线自动重连，失败不影响视频录制")
+    print("  [07] Windows 一键启动抖音评论采集服务")
+    print("=" * 61)
+
+
 # --------------------------初始化程序-------------------------------------
+print_mod_menu()
 print("-----------------------------------------------------")
-print("|                DouyinLiveRecorder                 |")
+print("|     DouyinLiveRecorder · 郑老师魔改版             |")
 print("-----------------------------------------------------")
 
 print(f"版本号: {version}")
-print("GitHub: https://github.com/ihmily/DouyinLiveRecorder")
+print(f"魔改构建编号: {MOD_BUILD}")
+print("魔改仓库: https://github.com/cn20004/DouyinLiveRecorder")
+print("原项目: https://github.com/ihmily/DouyinLiveRecorder")
 print(f'支持平台: {platforms}')
 print('.....................................................')
 if not check_ffmpeg_existence():
