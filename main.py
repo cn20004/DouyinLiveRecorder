@@ -28,6 +28,7 @@ from typing import Any
 import configparser
 import httpx
 from src import spider, stream
+from src.douyin_live_monitor import DouyinMonitorManager, extract_douyin_web_rid
 from src.proxy import ProxyDetector
 from src.utils import logger
 from src import utils
@@ -65,6 +66,7 @@ not_record_list = []
 start_display_time = datetime.datetime.now()
 global_proxy = False
 recording_time_list = {}
+douyin_monitor_manager = None
 script_path = os.path.split(os.path.realpath(sys.argv[0]))[0]
 config_file = f'{script_path}/config/config.ini'
 url_config_file = f'{script_path}/config/URL_config.ini'
@@ -387,6 +389,38 @@ def clear_record_info(record_name: str, record_url: str) -> None:
         running_list.remove(record_url)
         monitoring -= 1
         color_obj.print_colored(f"[{record_name}]已经从录制列表中移除\n", color_obj.YELLOW)
+
+
+def ensure_douyin_monitor(record_url: str, anchor_name: str, room_json: dict | None = None) -> None:
+    """Start comment/viewer collection for a Douyin room without blocking video recording."""
+    global douyin_monitor_manager
+    try:
+        if not douyin_monitor_enabled:
+            return
+
+        web_rid = extract_douyin_web_rid(record_url, room_json)
+        if not web_rid:
+            logger.warning(f"无法识别抖音 web_rid，跳过评论/人数采集: {record_url}")
+            return
+
+        db_path = douyin_monitor_db_path
+        if not os.path.isabs(db_path):
+            db_path = os.path.join(script_path, db_path)
+
+        if douyin_monitor_manager is None:
+            douyin_monitor_manager = DouyinMonitorManager(
+                collector_url=douyin_monitor_url,
+                db_path=db_path,
+            )
+
+        if douyin_monitor_manager.start_room(web_rid, anchor_name, record_url):
+            logger.info(
+                f"已启动抖音评论/人数采集: {anchor_name} room={web_rid} "
+                f"数据库={db_path}"
+            )
+    except Exception as err:
+        # Comment collection must never interrupt video recording.
+        logger.error(f"启动抖音评论/人数采集失败: {err}")
 
 
 def direct_download_stream(source_url: str, save_path: str, record_name: str, live_url: str, platform: str) -> bool:
@@ -1101,6 +1135,9 @@ def start_record(url_data: tuple, count_variable: int = -1) -> None:
                         else:
                             content = f"\r{record_name} 正在直播中..."
                             print(content)
+
+                            if platform == '抖音直播':
+                                ensure_douyin_monitor(record_url, anchor_name, json_data)
 
                             if live_status_push and not start_pushed:
                                 if begin_show_push:
@@ -1875,6 +1912,15 @@ while True:
     converts_to_h264 = options.get(read_config_value(config, '录制设置', 'mp4格式重新编码为h264', "否"), False)
     delete_origin_file = options.get(read_config_value(config, '录制设置', '追加格式后删除原文件', "否"), False)
     create_time_file = options.get(read_config_value(config, '录制设置', '生成时间字幕文件', "否"), False)
+    douyin_monitor_enabled = options.get(
+        read_config_value(config, '录制设置', '抖音评论和人数采集(是/否)', "否"), False
+    )
+    douyin_monitor_url = read_config_value(
+        config, '录制设置', '抖音评论采集服务地址', "http://127.0.0.1:8757"
+    ).strip().rstrip('/')
+    douyin_monitor_db_path = read_config_value(
+        config, '录制设置', '抖音评论数据库路径', "data/douyin_live.db"
+    ).strip() or "data/douyin_live.db"
     is_run_script = options.get(read_config_value(config, '录制设置', '是否录制完成后执行自定义脚本', "否"), False)
     custom_script = read_config_value(config, '录制设置', '自定义脚本执行命令', "") if is_run_script else None
     enable_proxy_platform = read_config_value(
