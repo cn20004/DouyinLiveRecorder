@@ -139,8 +139,8 @@ def update_file(file_path: str, old_str: str, new_str: str, start_str: str = Non
         return old_str
     with file_update_lock:
         file_data = []
-        with open(file_path, "r", encoding=text_encoding) as f:
-            try:
+        try:
+            with open(file_path, "r", encoding=text_encoding) as f:
                 for text_line in f:
                     if old_str in text_line:
                         text_line = text_line.replace(old_str, new_str)
@@ -148,33 +148,40 @@ def update_file(file_path: str, old_str: str, new_str: str, start_str: str = Non
                             text_line = f'{start_str}{text_line}'
                     if text_line not in file_data:
                         file_data.append(text_line)
-            except RuntimeError as e:
-                logger.error(f"错误信息: {e} 发生错误的行数: {e.__traceback__.tb_lineno}")
-                if ini_URL_content:
-                    with open(file_path, "w", encoding=text_encoding) as f2:
-                        f2.write(ini_URL_content)
-                    return old_str
+        except RuntimeError as e:
+            logger.error(f"错误信息: {e} 发生错误的行数: {e.__traceback__.tb_lineno}")
+            return old_str
+
         if file_data:
-            with open(file_path, "w", encoding=text_encoding) as f:
-                f.write(''.join(file_data))
+            new_content = ''.join(file_data)
+            if os.path.exists(file_path) and os.path.getsize(file_path) > 0 and not new_content.strip():
+                logger.error(f"拒绝用空内容覆盖非空配置文件: {file_path}")
+                return old_str
+            utils.atomic_write_text(file_path, new_content, encoding=text_encoding)
         return new_str
 
 
 def delete_line(file_path: str, del_line: str, delete_all: bool = False) -> None:
     with file_update_lock:
-        with open(file_path, 'r+', encoding=text_encoding) as f:
+        with open(file_path, 'r', encoding=text_encoding) as f:
             lines = f.readlines()
-            f.seek(0)
-            f.truncate()
-            skip_line = False
-            for txt_line in lines:
-                if del_line in txt_line:
-                    if delete_all or not skip_line:
-                        skip_line = True
-                        continue
-                else:
-                    skip_line = False
-                f.write(txt_line)
+
+        output_lines = []
+        skip_line = False
+        for txt_line in lines:
+            if del_line in txt_line:
+                if delete_all or not skip_line:
+                    skip_line = True
+                    continue
+            else:
+                skip_line = False
+            output_lines.append(txt_line)
+
+        new_content = ''.join(output_lines)
+        if lines and not new_content.strip():
+            logger.warning(f"拒绝删除后把整个配置文件写成空文件: {file_path}")
+            return
+        utils.atomic_write_text(file_path, new_content, encoding=text_encoding)
 
 
 def get_startup_info(system_type: str):
@@ -1645,8 +1652,51 @@ def start_record(url_data: tuple, count_variable: int = -1) -> None:
             time.sleep(2)
 
 
-def backup_file(file_path: str, backup_dir_path: str, limit_counts: int = 6) -> None:
+def recover_url_config_if_needed() -> bool:
+    """Recover URL_config.ini when it is missing/empty after an abnormal shutdown."""
     try:
+        current_ok = os.path.exists(url_config_file) and os.path.getsize(url_config_file) > 0
+        if current_ok:
+            with open(url_config_file, 'r', encoding=text_encoding, errors='ignore') as f:
+                if f.read().strip():
+                    return False
+
+        candidates = [url_config_file + '.last_good']
+        if os.path.isdir(backup_dir):
+            backup_candidates = [
+                os.path.join(backup_dir, name)
+                for name in os.listdir(backup_dir)
+                if name.startswith(os.path.basename(url_config_file) + '_')
+            ]
+            backup_candidates.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+            candidates.extend(backup_candidates)
+
+        for candidate in candidates:
+            try:
+                if not os.path.isfile(candidate) or os.path.getsize(candidate) <= 0:
+                    continue
+                with open(candidate, 'r', encoding=text_encoding, errors='ignore') as f:
+                    recovered_content = f.read()
+                if not recovered_content.strip():
+                    continue
+                utils.atomic_write_text(
+                    url_config_file, recovered_content,
+                    encoding=text_encoding, keep_last_good=False
+                )
+                logger.warning(f"检测到 URL_config.ini 为空，已自动从备份恢复: {candidate}")
+                return True
+            except OSError as err:
+                logger.error(f"尝试恢复 URL_config.ini 失败 {candidate}: {err}")
+        return False
+    except Exception as err:
+        logger.error(f"URL_config.ini 自动恢复失败: {err}")
+        return False
+
+
+def backup_file(file_path: str, backup_dir_path: str, limit_counts: int = 12) -> None:
+    try:
+        if not os.path.isfile(file_path) or os.path.getsize(file_path) <= 0:
+            return
         if not os.path.exists(backup_dir_path):
             os.makedirs(backup_dir_path)
 
@@ -1723,9 +1773,11 @@ if not check_ffmpeg_existence():
     logger.error("缺少ffmpeg无法进行录制，程序退出")
     sys.exit(1)
 os.makedirs(os.path.dirname(config_file), exist_ok=True)
+recover_url_config_if_needed()
+if os.path.isfile(url_config_file):
+    utils.remove_duplicate_lines(url_config_file)
 t3 = threading.Thread(target=backup_file_start, args=(), daemon=True)
 t3.start()
-utils.remove_duplicate_lines(url_config_file)
 
 
 def read_config_value(config_parser: configparser.RawConfigParser, section: str, option: str, default_value: Any) \
@@ -1794,8 +1846,7 @@ while True:
 
         if not ini_URL_content.strip():
             input_url = input('请输入要录制的主播直播间网址（尽量使用PC网页端的直播间地址）:\n')
-            with open(url_config_file, 'w', encoding=text_encoding) as file:
-                file.write(input_url)
+            utils.atomic_write_text(url_config_file, input_url, encoding=text_encoding)
     except OSError as err:
         logger.error(f"发生 I/O 错误: {err}")
 
