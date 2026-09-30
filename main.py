@@ -12,7 +12,7 @@ import asyncio
 import io
 import os
 import sys
-os.environ["PATH"] = os.path.join(os.path.dirname(os.path.realpath(sys.argv[0])), "runtime") + os.pathsep + os.environ.get("PATH", "")
+os.environ["PATH"] = os.pathsep.join([os.path.join(os.path.dirname(os.path.realpath(sys.argv[0])), "runtime"), os.path.join(os.path.dirname(os.path.realpath(sys.argv[0])), "ffmpeg"), os.environ.get("PATH", "")])
 import builtins
 import subprocess
 import signal
@@ -51,8 +51,8 @@ if "--self-test" in sys.argv:
 
 BASE_VERSION = "v4.0.7"
 MOD_NAME = "郑老师魔改版"
-MOD_VERSION = "v1.1.0"
-MOD_BUILD = "ZL-DLR-20260930-02"
+MOD_VERSION = "v1.1.1"
+MOD_BUILD = "ZL-DLR-20260930-03"
 version = f"{BASE_VERSION} / {MOD_NAME} {MOD_VERSION}"
 platforms = ("\n国内站点：抖音|快手|虎牙|斗鱼|YY|B站|小红书|bigo|blued|网易CC|千度热播|猫耳FM|Look|TwitCasting|百度|微博|"
              "酷狗|花椒|流星|Acfun|畅聊|映客|音播|知乎|嗨秀|VV星球|17Live|浪Live|漂漂|六间房|乐嗨|花猫|淘宝|京东|咪咕|连接|来秀"

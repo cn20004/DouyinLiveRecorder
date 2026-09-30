@@ -10,7 +10,7 @@ from tkinter import messagebox
 import webbrowser
 
 ROOT = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).parent
-VERSION = 'v1.1.0'
+VERSION = 'v1.1.1'
 
 def self_test():
     required = ['DouyinLiveRecorder-Core.exe', 'runtime/node.exe', 'runtime/dyhub/dist/index.js',

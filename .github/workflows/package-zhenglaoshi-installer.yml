@@ -19,12 +19,12 @@ jobs:
         run: |
           $ready = $false
           for ($i=0; $i -lt 90; $i++) {
-            gh release download zhenglaoshi-v1.1.0 -R '${{ github.repository }}' -p 'DouyinLiveRecorder-Zhenglaoshi-Mod-v1.1.0-Windows-x64.zip' --clobber
+            gh release download zhenglaoshi-v1.1.1 -R '${{ github.repository }}' -p 'DouyinLiveRecorder-Zhenglaoshi-Mod-v1.1.1-Windows-x64.zip' --clobber
             if ($LASTEXITCODE -eq 0) { $ready=$true; break }
             Start-Sleep -Seconds 10
           }
           if (!$ready) { throw 'Verified portable release not available' }
-          Expand-Archive DouyinLiveRecorder-Zhenglaoshi-Mod-v1.1.0-Windows-x64.zip package
+          Expand-Archive DouyinLiveRecorder-Zhenglaoshi-Mod-v1.1.1-Windows-x64.zip package
       - name: Build installer
         shell: pwsh
         run: |
@@ -34,20 +34,20 @@ jobs:
       - name: Test installation and application
         shell: pwsh
         run: |
-          $installer = (Get-ChildItem -Recurse -Filter 'Zhenglaoshi-DouyinLive-Setup-v1.1.0.exe' | Select-Object -First 1).FullName
+          $installer = (Get-ChildItem -Recurse -Filter 'Zhenglaoshi-DouyinLive-Setup-v1.1.1.exe' | Select-Object -First 1).FullName
           $dest = 'C:\ZhenglaoshiInstallSmoke'
           $p = Start-Process $installer -ArgumentList '/S',"/D=$dest" -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw 'Installation failed' }
-          $p = Start-Process "$dest/Zhenglaoshi-DouyinLive-v1.1.0.exe" -ArgumentList '--self-test' -Wait -PassThru
+          $p = Start-Process "$dest/Zhenglaoshi-DouyinLive-v1.1.1.exe" -ArgumentList '--self-test' -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw 'Installed application self-test failed' }
       - name: Publish final EXE
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload zhenglaoshi-v1.1.0 Zhenglaoshi-DouyinLive-Setup-v1.1.0.exe -R '${{ github.repository }}' --clobber
+          gh release upload zhenglaoshi-v1.1.1 Zhenglaoshi-DouyinLive-Setup-v1.1.1.exe -R '${{ github.repository }}' --clobber
           if ($LASTEXITCODE) { throw 'Installer upload failed' }
       - uses: actions/upload-artifact@v4
         with:
-          name: Zhenglaoshi-DouyinLive-Setup-v1.1.0
-          path: Zhenglaoshi-DouyinLive-Setup-v1.1.0.exe
+          name: Zhenglaoshi-DouyinLive-Setup-v1.1.1
+          path: Zhenglaoshi-DouyinLive-Setup-v1.1.1.exe

@@ -1,12 +1,12 @@
 Unicode True
 !include "MUI2.nsh"
-Name "郑老师魔改版 · 抖音直播录制 v1.1.0"
-OutFile "Zhenglaoshi-DouyinLive-Setup-v1.1.0.exe"
+Name "郑老师魔改版 · 抖音直播录制 v1.1.1"
+OutFile "Zhenglaoshi-DouyinLive-Setup-v1.1.1.exe"
 InstallDir "$LOCALAPPDATA\Zhenglaoshi-DouyinLive"
 RequestExecutionLevel user
 SetCompressor /SOLID lzma
 !define MUI_ABORTWARNING
-!define MUI_FINISHPAGE_RUN "$INSTDIR\Zhenglaoshi-DouyinLive-v1.1.0.exe"
+!define MUI_FINISHPAGE_RUN "$INSTDIR\Zhenglaoshi-DouyinLive-v1.1.1.exe"
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
@@ -23,12 +23,12 @@ Section "Program"
   CreateDirectory "$INSTDIR\downloads"
   CreateDirectory "$INSTDIR\data"
   CreateDirectory "$INSTDIR\backup_config"
-  CreateShortcut "$DESKTOP\郑老师抖音直播录制.lnk" "$INSTDIR\Zhenglaoshi-DouyinLive-v1.1.0.exe"
+  CreateShortcut "$DESKTOP\郑老师抖音直播录制.lnk" "$INSTDIR\Zhenglaoshi-DouyinLive-v1.1.1.exe"
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 SectionEnd
 Section "Uninstall"
   Delete "$DESKTOP\郑老师抖音直播录制.lnk"
-  Delete "$INSTDIR\Zhenglaoshi-DouyinLive-v1.1.0.exe"
+  Delete "$INSTDIR\Zhenglaoshi-DouyinLive-v1.1.1.exe"
   Delete "$INSTDIR\DouyinLiveRecorder-Core.exe"
   Delete "$INSTDIR\Uninstall.exe"
   RMDir /r "$INSTDIR\runtime"

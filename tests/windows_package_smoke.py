@@ -13,7 +13,7 @@ try:
     assert runtime.healthy(), 'Packaged collector health check failed'
 finally:
     runtime.close()
-p=subprocess.Popen([str(root/'Zhenglaoshi-DouyinLive-v1.1.0.exe')],cwd=root)
+p=subprocess.Popen([str(root/'Zhenglaoshi-DouyinLive-v1.1.1.exe')],cwd=root)
 try:
     time.sleep(4)
     assert p.poll() is None, 'Desktop launcher exited unexpectedly'
