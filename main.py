@@ -9,8 +9,10 @@ Copyright (c) 2023-2025 by Hmily, All Rights Reserved.
 Function: Record live stream video.
 """
 import asyncio
+import io
 import os
 import sys
+os.environ["PATH"] = os.pathsep.join([os.path.join(os.path.dirname(os.path.realpath(sys.argv[0])), "runtime"), os.path.join(os.path.dirname(os.path.realpath(sys.argv[0])), "ffmpeg"), os.environ.get("PATH", "")])
 import builtins
 import subprocess
 import signal
@@ -28,6 +30,8 @@ from typing import Any
 import configparser
 import httpx
 from src import spider, stream
+from src.douyin_live_monitor import DouyinMonitorManager, extract_douyin_web_rid
+from src.collector_runtime import CollectorRuntime
 from src.proxy import ProxyDetector
 from src.utils import logger
 from src import utils
@@ -38,7 +42,18 @@ from ffmpeg_install import (
     check_ffmpeg, ffmpeg_path, current_env_path
 )
 
-version = "v4.0.7"
+if "--self-test" in sys.argv:
+    import execjs
+    if not check_ffmpeg() or execjs.eval("1+1") != 2:
+        raise SystemExit(1)
+    print("Recorder EXE dependencies OK")
+    raise SystemExit(0)
+
+BASE_VERSION = "v4.0.7"
+MOD_NAME = "郑老师魔改版"
+MOD_VERSION = "v1.1.1"
+MOD_BUILD = "ZL-DLR-20260930-03"
+version = f"{BASE_VERSION} / {MOD_NAME} {MOD_VERSION}"
 platforms = ("\n国内站点：抖音|快手|虎牙|斗鱼|YY|B站|小红书|bigo|blued|网易CC|千度热播|猫耳FM|Look|TwitCasting|百度|微博|"
              "酷狗|花椒|流星|Acfun|畅聊|映客|音播|知乎|嗨秀|VV星球|17Live|浪Live|漂漂|六间房|乐嗨|花猫|淘宝|京东|咪咕|连接|来秀"
              "\n海外站点：TikTok|SOOP|PandaTV|WinkTV|FlexTV|PopkonTV|TwitchTV|LiveMe|ShowRoom|CHZZK|Shopee|"
@@ -65,6 +80,8 @@ not_record_list = []
 start_display_time = datetime.datetime.now()
 global_proxy = False
 recording_time_list = {}
+douyin_monitor_manager = None
+collector_runtime = None
 script_path = os.path.split(os.path.realpath(sys.argv[0]))[0]
 config_file = f'{script_path}/config/config.ini'
 url_config_file = f'{script_path}/config/URL_config.ini'
@@ -96,6 +113,7 @@ def display_info() -> None:
             time.sleep(5)
             if Path(sys.executable).name != 'pythonw.exe':
                 os.system(clear_command)
+            print(f"【{MOD_NAME} {MOD_VERSION}】构建编号: {MOD_BUILD}")
             print(f"\r共监测{monitoring}个直播中", end=" | ")
             print(f"同一时间访问网络的线程数: {max_request}", end=" | ")
             print(f"是否开启代理录制: {'是' if use_proxy else '否'}", end=" | ")
@@ -139,8 +157,8 @@ def update_file(file_path: str, old_str: str, new_str: str, start_str: str = Non
         return old_str
     with file_update_lock:
         file_data = []
-        with open(file_path, "r", encoding=text_encoding) as f:
-            try:
+        try:
+            with open(file_path, "r", encoding=text_encoding) as f:
                 for text_line in f:
                     if old_str in text_line:
                         text_line = text_line.replace(old_str, new_str)
@@ -148,33 +166,40 @@ def update_file(file_path: str, old_str: str, new_str: str, start_str: str = Non
                             text_line = f'{start_str}{text_line}'
                     if text_line not in file_data:
                         file_data.append(text_line)
-            except RuntimeError as e:
-                logger.error(f"错误信息: {e} 发生错误的行数: {e.__traceback__.tb_lineno}")
-                if ini_URL_content:
-                    with open(file_path, "w", encoding=text_encoding) as f2:
-                        f2.write(ini_URL_content)
-                    return old_str
+        except RuntimeError as e:
+            logger.error(f"错误信息: {e} 发生错误的行数: {e.__traceback__.tb_lineno}")
+            return old_str
+
         if file_data:
-            with open(file_path, "w", encoding=text_encoding) as f:
-                f.write(''.join(file_data))
+            new_content = ''.join(file_data)
+            if os.path.exists(file_path) and os.path.getsize(file_path) > 0 and not new_content.strip():
+                logger.error(f"拒绝用空内容覆盖非空配置文件: {file_path}")
+                return old_str
+            utils.atomic_write_text(file_path, new_content, encoding=text_encoding)
         return new_str
 
 
 def delete_line(file_path: str, del_line: str, delete_all: bool = False) -> None:
     with file_update_lock:
-        with open(file_path, 'r+', encoding=text_encoding) as f:
+        with open(file_path, 'r', encoding=text_encoding) as f:
             lines = f.readlines()
-            f.seek(0)
-            f.truncate()
-            skip_line = False
-            for txt_line in lines:
-                if del_line in txt_line:
-                    if delete_all or not skip_line:
-                        skip_line = True
-                        continue
-                else:
-                    skip_line = False
-                f.write(txt_line)
+
+        output_lines = []
+        skip_line = False
+        for txt_line in lines:
+            if del_line in txt_line:
+                if delete_all or not skip_line:
+                    skip_line = True
+                    continue
+            else:
+                skip_line = False
+            output_lines.append(txt_line)
+
+        new_content = ''.join(output_lines)
+        if lines and not new_content.strip():
+            logger.warning(f"拒绝删除后把整个配置文件写成空文件: {file_path}")
+            return
+        utils.atomic_write_text(file_path, new_content, encoding=text_encoding)
 
 
 def get_startup_info(system_type: str):
@@ -380,6 +405,42 @@ def clear_record_info(record_name: str, record_url: str) -> None:
         running_list.remove(record_url)
         monitoring -= 1
         color_obj.print_colored(f"[{record_name}]已经从录制列表中移除\n", color_obj.YELLOW)
+
+
+def ensure_douyin_monitor(record_url: str, anchor_name: str, room_json: dict | None = None) -> None:
+    """Start comment/viewer collection for a Douyin room without blocking video recording."""
+    global douyin_monitor_manager, collector_runtime
+    try:
+        if not douyin_monitor_enabled:
+            return
+
+        web_rid = extract_douyin_web_rid(record_url, room_json)
+        if not web_rid:
+            logger.warning(f"无法识别抖音 web_rid，跳过评论/人数采集: {record_url}")
+            return
+
+        db_path = douyin_monitor_db_path
+        if not os.path.isabs(db_path):
+            db_path = os.path.join(script_path, db_path)
+
+        if collector_runtime is None and douyin_monitor_url == "http://127.0.0.1:8757":
+            collector_runtime = CollectorRuntime(script_path)
+        if collector_runtime is not None:
+            collector_runtime.ensure_started()
+        if douyin_monitor_manager is None:
+            douyin_monitor_manager = DouyinMonitorManager(
+                collector_url=douyin_monitor_url,
+                db_path=db_path,
+            )
+
+        if douyin_monitor_manager.start_room(web_rid, anchor_name, record_url):
+            logger.info(
+                f"已启动抖音评论/人数采集: {anchor_name} room={web_rid} "
+                f"数据库={db_path}"
+            )
+    except Exception as err:
+        # Comment collection must never interrupt video recording.
+        logger.error(f"启动抖音评论/人数采集失败: {err}")
 
 
 def direct_download_stream(source_url: str, save_path: str, record_name: str, live_url: str, platform: str) -> bool:
@@ -1095,6 +1156,9 @@ def start_record(url_data: tuple, count_variable: int = -1) -> None:
                             content = f"\r{record_name} 正在直播中..."
                             print(content)
 
+                            if platform == '抖音直播':
+                                ensure_douyin_monitor(record_url, anchor_name, json_data)
+
                             if live_status_push and not start_pushed:
                                 if begin_show_push:
                                     push_content = "直播间状态更新：[直播间名称] 正在直播中，时间：[时间]"
@@ -1645,8 +1709,51 @@ def start_record(url_data: tuple, count_variable: int = -1) -> None:
             time.sleep(2)
 
 
-def backup_file(file_path: str, backup_dir_path: str, limit_counts: int = 6) -> None:
+def recover_url_config_if_needed() -> bool:
+    """Recover URL_config.ini when it is missing/empty after an abnormal shutdown."""
     try:
+        current_ok = os.path.exists(url_config_file) and os.path.getsize(url_config_file) > 0
+        if current_ok:
+            with open(url_config_file, 'r', encoding=text_encoding, errors='ignore') as f:
+                if f.read().strip():
+                    return False
+
+        candidates = [url_config_file + '.last_good']
+        if os.path.isdir(backup_dir):
+            backup_candidates = [
+                os.path.join(backup_dir, name)
+                for name in os.listdir(backup_dir)
+                if name.startswith(os.path.basename(url_config_file) + '_')
+            ]
+            backup_candidates.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+            candidates.extend(backup_candidates)
+
+        for candidate in candidates:
+            try:
+                if not os.path.isfile(candidate) or os.path.getsize(candidate) <= 0:
+                    continue
+                with open(candidate, 'r', encoding=text_encoding, errors='ignore') as f:
+                    recovered_content = f.read()
+                if not recovered_content.strip():
+                    continue
+                utils.atomic_write_text(
+                    url_config_file, recovered_content,
+                    encoding=text_encoding, keep_last_good=False
+                )
+                logger.warning(f"检测到 URL_config.ini 为空，已自动从备份恢复: {candidate}")
+                return True
+            except OSError as err:
+                logger.error(f"尝试恢复 URL_config.ini 失败 {candidate}: {err}")
+        return False
+    except Exception as err:
+        logger.error(f"URL_config.ini 自动恢复失败: {err}")
+        return False
+
+
+def backup_file(file_path: str, backup_dir_path: str, limit_counts: int = 12) -> None:
+    try:
+        if not os.path.isfile(file_path) or os.path.getsize(file_path) <= 0:
+            return
         if not os.path.exists(backup_dir_path):
             os.makedirs(backup_dir_path)
 
@@ -1710,22 +1817,45 @@ def check_ffmpeg_existence() -> bool:
     return False
 
 
+def print_mod_menu() -> None:
+    """Display an unmistakable Zhenglaoshi mod identity and feature menu."""
+    print("=" * 61)
+    print(f"  {MOD_NAME}  {MOD_VERSION}")
+    print(f"  构建编号：{MOD_BUILD}")
+    print(f"  基础版本：DouyinLiveRecorder {BASE_VERSION}")
+    print("=" * 61)
+    print("【郑老师魔改功能菜单】")
+    print("  [01] URL_config 防死机清空 / 原子写入")
+    print("  [02] URL_config .last_good + 历史备份自动恢复")
+    print("  [03] 抖音直播评论实时采集")
+    print("  [04] 抖音直播在线人数 / 累计观看历史")
+    print("  [05] 评论、礼物、进房、点赞、关注 SQLite 持久化")
+    print("  [06] 评论采集断线自动重连，失败不影响视频录制")
+    print("  [07] Windows 一键启动抖音评论采集服务")
+    print("=" * 61)
+
+
 # --------------------------初始化程序-------------------------------------
+print_mod_menu()
 print("-----------------------------------------------------")
-print("|                DouyinLiveRecorder                 |")
+print("|     DouyinLiveRecorder · 郑老师魔改版             |")
 print("-----------------------------------------------------")
 
 print(f"版本号: {version}")
-print("GitHub: https://github.com/ihmily/DouyinLiveRecorder")
+print(f"魔改构建编号: {MOD_BUILD}")
+print("魔改仓库: https://github.com/cn20004/DouyinLiveRecorder")
+print("原项目: https://github.com/ihmily/DouyinLiveRecorder")
 print(f'支持平台: {platforms}')
 print('.....................................................')
 if not check_ffmpeg_existence():
     logger.error("缺少ffmpeg无法进行录制，程序退出")
     sys.exit(1)
 os.makedirs(os.path.dirname(config_file), exist_ok=True)
+recover_url_config_if_needed()
+if os.path.isfile(url_config_file):
+    utils.remove_duplicate_lines(url_config_file)
 t3 = threading.Thread(target=backup_file_start, args=(), daemon=True)
 t3.start()
-utils.remove_duplicate_lines(url_config_file)
 
 
 def read_config_value(config_parser: configparser.RawConfigParser, section: str, option: str, default_value: Any) \
@@ -1746,8 +1876,9 @@ def read_config_value(config_parser: configparser.RawConfigParser, section: str,
         return config_parser.get(section, option)
     except (configparser.NoSectionError, configparser.NoOptionError):
         config_parser.set(section, option, str(default_value))
-        with open(config_file, 'w', encoding=text_encoding) as f:
-            config_parser.write(f)
+        buffer = io.StringIO()
+        config_parser.write(buffer)
+        utils.atomic_write_text(config_file, buffer.getvalue(), encoding=text_encoding)
         return default_value
 
 
@@ -1794,8 +1925,7 @@ while True:
 
         if not ini_URL_content.strip():
             input_url = input('请输入要录制的主播直播间网址（尽量使用PC网页端的直播间地址）:\n')
-            with open(url_config_file, 'w', encoding=text_encoding) as file:
-                file.write(input_url)
+            utils.atomic_write_text(url_config_file, input_url, encoding=text_encoding)
     except OSError as err:
         logger.error(f"发生 I/O 错误: {err}")
 
@@ -1824,6 +1954,15 @@ while True:
     converts_to_h264 = options.get(read_config_value(config, '录制设置', 'mp4格式重新编码为h264', "否"), False)
     delete_origin_file = options.get(read_config_value(config, '录制设置', '追加格式后删除原文件', "否"), False)
     create_time_file = options.get(read_config_value(config, '录制设置', '生成时间字幕文件', "否"), False)
+    douyin_monitor_enabled = options.get(
+        read_config_value(config, '录制设置', '抖音评论和人数采集(是/否)', "是"), True
+    )
+    douyin_monitor_url = read_config_value(
+        config, '录制设置', '抖音评论采集服务地址', "http://127.0.0.1:8757"
+    ).strip().rstrip('/')
+    douyin_monitor_db_path = read_config_value(
+        config, '录制设置', '抖音评论数据库路径', "data/douyin_live.db"
+    ).strip() or "data/douyin_live.db"
     is_run_script = options.get(read_config_value(config, '录制设置', '是否录制完成后执行自定义脚本', "否"), False)
     custom_script = read_config_value(config, '录制设置', '自定义脚本执行命令', "") if is_run_script else None
     enable_proxy_platform = read_config_value(

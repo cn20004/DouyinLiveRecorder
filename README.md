@@ -1,3 +1,21 @@
+# Windows v1.1.1 使用说明
+
+下载完整 ZIP，解压全部文件，双击 `Zhenglaoshi-DouyinLive-v1.1.1.exe`。
+填写直播地址后点击开始录制。内置 Node.js、Chromium、FFmpeg 和评论采集服务，无需安装 Python/Git/npm。
+实时数据按钮查看采集服务，历史CSV导出按钮导出数据库中已保存的事件、人数和连接状态。
+配置原子写入并保留上一版本；空地址配置启动时尝试恢复。评论采集仅保存实际监听期间的数据，平台验证或网络问题可能影响采集。
+
+# 郑老师魔改版 DouyinLiveRecorder
+
+> **版本：v1.1.1**  
+> **构建编号：ZL-DLR-20260930-03**  
+> **基础版本：DouyinLiveRecorder v4.0.7**  
+> **魔改仓库：cn20004/DouyinLiveRecorder**
+
+本分支不是原版直接镜像，而是“郑老师魔改版”。启动程序时会在控制台明确显示名称、版本、构建编号和魔改功能菜单。
+
+---
+
 ![video_spider](https://socialify.git.ci/ihmily/DouyinLiveRecorder/image?font=Inter&forks=1&language=1&owner=1&pattern=Circuit%20Board&stargazers=1&theme=Light)
 
 ## 💡简介
@@ -677,3 +695,44 @@ docker-compose stop
 
 ## 有问题可以提issue, 我会在这里持续添加更多直播平台的录制 欢迎Star
 #### 
+
+
+---
+
+## 郑老师魔改：抖音评论与在线人数采集
+
+本分支增加了独立的抖音直播数据采集层。视频录制仍由 DouyinLiveRecorder 负责，评论/人数采集通过本地 DyHub 兼容服务接入；采集服务异常不会中断 FFmpeg 录像。
+
+### 能保存的数据
+
+- 实时评论：消息ID、时间、用户ID、昵称、secUid、评论内容
+- 礼物、进房、点赞、关注事件
+- 在线人数时间序列：`room.data.total`
+- 累计观看人数：`room.data.totalUser`
+- 原始标准化事件 JSON，方便后续做 AI 分析
+
+数据默认写入：
+
+```
+data/douyin_live.db
+```
+
+SQLite 表：
+
+- `douyin_events`：所有实时事件
+- `douyin_room_stats`：在线人数/累计观看历史
+- `douyin_monitor_sessions`：房间采集状态和错误记录
+
+### 开启方式
+
+在 `config/config.ini`：
+
+```ini
+抖音评论和人数采集(是/否) = 是
+抖音评论采集服务地址 = http://127.0.0.1:8757
+抖音评论数据库路径 = data/douyin_live.db
+```
+
+采集端建议使用 DyHub 的浏览器/CDP模式。Windows 可直接双击 `tools/start_douyin_monitor.bat` 一键安装并启动固定版本的采集服务。启动后，DouyinLiveRecorder 检测到抖音直播正在开播时会自动连接对应房间并开始写库。
+
+> 注意：这里只能保证从开始监听之后持续保存。程序没有监听到的历史评论，不能保证事后完整补抓。
