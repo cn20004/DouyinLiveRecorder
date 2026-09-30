@@ -1,0 +1,53 @@
+name: Package Zhenglaoshi Windows Installer
+on:
+  push:
+    branches: [zhenglaoshi-url-config-safety]
+    paths: ['packaging/installer.nsi', '.github/workflows/package-zhenglaoshi-installer.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  installer:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download verified portable package
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ready = $false
+          for ($i=0; $i -lt 90; $i++) {
+            gh release download zhenglaoshi-v1.1.0 -R '${{ github.repository }}' -p 'DouyinLiveRecorder-Zhenglaoshi-Mod-v1.1.0-Windows-x64.zip' --clobber
+            if ($LASTEXITCODE -eq 0) { $ready=$true; break }
+            Start-Sleep -Seconds 10
+          }
+          if (!$ready) { throw 'Verified portable release not available' }
+          Expand-Archive DouyinLiveRecorder-Zhenglaoshi-Mod-v1.1.0-Windows-x64.zip package
+      - name: Build installer
+        shell: pwsh
+        run: |
+          if (!(Test-Path 'C:/Program Files (x86)/NSIS/makensis.exe')) { choco install nsis -y --no-progress }
+          & 'C:/Program Files (x86)/NSIS/makensis.exe' /NOCD packaging/installer.nsi
+          if ($LASTEXITCODE) { throw 'NSIS build failed' }
+      - name: Test installation and application
+        shell: pwsh
+        run: |
+          $installer = (Get-ChildItem -Recurse -Filter 'Zhenglaoshi-DouyinLive-Setup-v1.1.0.exe' | Select-Object -First 1).FullName
+          $dest = 'C:\ZhenglaoshiInstallSmoke'
+          $p = Start-Process $installer -ArgumentList '/S',"/D=$dest" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw 'Installation failed' }
+          $p = Start-Process "$dest/Zhenglaoshi-DouyinLive-v1.1.0.exe" -ArgumentList '--self-test' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw 'Installed application self-test failed' }
+      - name: Publish final EXE
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload zhenglaoshi-v1.1.0 Zhenglaoshi-DouyinLive-Setup-v1.1.0.exe -R '${{ github.repository }}' --clobber
+          if ($LASTEXITCODE) { throw 'Installer upload failed' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Zhenglaoshi-DouyinLive-Setup-v1.1.0
+          path: Zhenglaoshi-DouyinLive-Setup-v1.1.0.exe
