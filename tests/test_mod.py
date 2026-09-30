@@ -1,4 +1,5 @@
 import tempfile
+from contextlib import closing
 from pathlib import Path
 import sqlite3
 import unittest
@@ -11,7 +12,7 @@ class ModTests(unittest.TestCase):
             store = DouyinEventStore(str(Path(d)/'test.db'))
             ev = {'roomId':'123','type':'room','ts':1000,'data':{'total':25,'totalUser':100}}
             store.save_event(ev); store.save_event(ev)
-            with sqlite3.connect(store.db_path) as conn:
+            with closing(sqlite3.connect(store.db_path)) as conn:
                 self.assertEqual(conn.execute('SELECT COUNT(*) FROM douyin_events').fetchone()[0],1)
                 self.assertEqual(conn.execute('SELECT online_total,total_user FROM douyin_room_stats').fetchall(),[(25,100)])
     def test_comment_and_control_messages(self):
@@ -19,7 +20,7 @@ class ModTests(unittest.TestCase):
             store = DouyinEventStore(str(Path(d)/'test.db'))
             store.save_event({'id':'c1','roomId':'123','type':'chat','ts':1000,'user':{'nickname':'张三'},'data':{'content':'你好'}})
             store.save_event({'roomId':'123','type':'__connected'})
-            with sqlite3.connect(store.db_path) as conn:
+            with closing(sqlite3.connect(store.db_path)) as conn:
                 self.assertEqual(conn.execute('SELECT nickname,content FROM douyin_events').fetchall(),[('张三','你好')])
     def test_atomic_write_preserves_previous_configuration(self):
         with tempfile.TemporaryDirectory() as d:

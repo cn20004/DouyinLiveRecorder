@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+from contextlib import contextmanager
 import os
 import re
 import sqlite3
@@ -52,12 +53,17 @@ class DouyinEventStore:
         self._lock = threading.Lock()
         self._init_db()
 
-    def _connect(self) -> sqlite3.Connection:
+    @contextmanager
+    def _connect(self):
         conn = sqlite3.connect(self.db_path, timeout=30)
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA synchronous=NORMAL")
         conn.execute("PRAGMA busy_timeout=30000")
-        return conn
+        try:
+            with conn:
+                yield conn
+        finally:
+            conn.close()
 
     def _init_db(self) -> None:
         with self._connect() as conn:

@@ -1,7 +1,14 @@
+# Windows v1.1.0 使用说明
+
+下载完整 ZIP，解压全部文件，双击 `Zhenglaoshi-DouyinLive-v1.1.0.exe`。
+填写直播地址后点击开始录制。内置 Node.js、Chromium、FFmpeg 和评论采集服务，无需安装 Python/Git/npm。
+实时数据按钮查看采集服务，历史CSV导出按钮导出数据库中已保存的事件、人数和连接状态。
+配置原子写入并保留上一版本；空地址配置启动时尝试恢复。评论采集仅保存实际监听期间的数据，平台验证或网络问题可能影响采集。
+
 # 郑老师魔改版 DouyinLiveRecorder
 
-> **版本：v1.0.0**  
-> **构建编号：ZL-DLR-20260928-01**  
+> **版本：v1.1.0**  
+> **构建编号：ZL-DLR-20260930-02**  
 > **基础版本：DouyinLiveRecorder v4.0.7**  
 > **魔改仓库：cn20004/DouyinLiveRecorder**
 

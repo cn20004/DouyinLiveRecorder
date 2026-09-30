@@ -1,5 +1,6 @@
 """Windows desktop launcher, configuration editor and historical CSV exporter."""
 import csv
+from contextlib import closing
 from pathlib import Path
 import sqlite3
 import subprocess
@@ -62,7 +63,7 @@ def export():
     if not db.exists(): messagebox.showinfo('暂无数据', '尚未收到采集数据。开播并连接成功后会生成数据库。'); return
     dest = ROOT / 'exports'; dest.mkdir(exist_ok=True)
     try:
-        with sqlite3.connect(f'{db.as_uri()}?mode=ro', uri=True) as conn:
+        with closing(sqlite3.connect(f'{db.as_uri()}?mode=ro', uri=True)) as conn:
             for name in ['douyin_events', 'douyin_room_stats', 'douyin_monitor_sessions']:
                 cursor = conn.execute('SELECT * FROM ' + name)
                 with open(dest / (name + '.csv'), 'w', encoding='utf-8-sig', newline='') as f:

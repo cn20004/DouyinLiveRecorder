@@ -12,6 +12,7 @@ import asyncio
 import io
 import os
 import sys
+os.environ["PATH"] = os.path.join(os.path.dirname(os.path.realpath(sys.argv[0])), "runtime") + os.pathsep + os.environ.get("PATH", "")
 import builtins
 import subprocess
 import signal
@@ -40,6 +41,13 @@ from msg_push import (
 from ffmpeg_install import (
     check_ffmpeg, ffmpeg_path, current_env_path
 )
+
+if "--self-test" in sys.argv:
+    import execjs
+    if not check_ffmpeg() or execjs.eval("1+1") != 2:
+        raise SystemExit(1)
+    print("Recorder EXE dependencies OK")
+    raise SystemExit(0)
 
 BASE_VERSION = "v4.0.7"
 MOD_NAME = "郑老师魔改版"

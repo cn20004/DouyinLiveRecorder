@@ -81,6 +81,8 @@ jobs:
           $exe = (Resolve-Path dist/Zhenglaoshi-DouyinLive-v1.1.0/Zhenglaoshi-DouyinLive-v1.1.0.exe).Path
           $p = Start-Process $exe -ArgumentList '--self-test' -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "Package self-test failed: $($p.ExitCode)" }
+          $env:PYTHONPATH = (Get-Location).Path
+          python tests/windows_package_smoke.py dist/Zhenglaoshi-DouyinLive-v1.1.0
           python -c "from pathlib import Path; files=list(Path('dist/Zhenglaoshi-DouyinLive-v1.1.0').glob('*.exe')); assert len(files)==2; assert all(p.read_bytes()[:2]==b'MZ' for p in files)"
       - name: Package and publish
         shell: pwsh
