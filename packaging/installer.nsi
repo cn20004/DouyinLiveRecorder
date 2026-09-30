@@ -4,7 +4,7 @@ Name "郑老师魔改版 · 抖音直播录制 v1.1.1"
 OutFile "Zhenglaoshi-DouyinLive-Setup-v1.1.1.exe"
 InstallDir "$LOCALAPPDATA\Zhenglaoshi-DouyinLive"
 RequestExecutionLevel user
-SetCompressor /SOLID lzma
+SetCompressor /SOLID zlib
 !define MUI_ABORTWARNING
 !define MUI_FINISHPAGE_RUN "$INSTDIR\Zhenglaoshi-DouyinLive-v1.1.1.exe"
 !insertmacro MUI_PAGE_WELCOME
