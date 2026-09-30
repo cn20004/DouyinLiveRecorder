@@ -9,6 +9,7 @@ them in SQLite. Collector failures never interrupt video recording.
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import re
 import sqlite3
@@ -153,7 +154,7 @@ class DouyinEventStore:
     def save_event(self, event: dict[str, Any]) -> None:
         event_type = str(event.get("type") or "unknown")
         room_id = str(event.get("roomId") or "")
-        if not room_id:
+        if not room_id or event_type.startswith("__"):
             return
 
         event_ts = int(event.get("ts") or event.get("receivedAt") or time.time() * 1000)
@@ -162,7 +163,7 @@ class DouyinEventStore:
         data = event.get("data") or {}
         event_id = str(
             event.get("id")
-            or f"{room_id}:{event_type}:{event_ts}:{user.get('id','')}:{hash(json.dumps(event, ensure_ascii=False, sort_keys=True))}"
+            or f"{room_id}:{event_type}:{event_ts}:{user.get('id','')}:{hashlib.sha256(json.dumps(event, ensure_ascii=False, sort_keys=True).encode()).hexdigest()}"
         )
         payload = json.dumps(event, ensure_ascii=False, separators=(",", ":"))
         content = data.get("content")
@@ -170,7 +171,7 @@ class DouyinEventStore:
             content = str(content)
 
         with self._lock, self._connect() as conn:
-            conn.execute(
+            inserted = conn.execute(
                 """
                 INSERT OR IGNORE INTO douyin_events
                     (id, room_id, platform, type, event_ts, received_at,
@@ -193,7 +194,7 @@ class DouyinEventStore:
                 ),
             )
 
-            if event_type == "room":
+            if event_type == "room" and inserted.rowcount:
                 conn.execute(
                     """
                     INSERT INTO douyin_room_stats
@@ -280,7 +281,7 @@ class DouyinMonitorManager:
 
         while not stop_event.is_set():
             try:
-                with httpx.Client(timeout=None) as client:
+                with httpx.Client(timeout=httpx.Timeout(90.0, connect=20.0), trust_env=False) as client:
                     self._connect_room(client, room_id)
                     self.store.touch_session(room_id, "connected")
                     retry = 0
@@ -309,7 +310,7 @@ class DouyinMonitorManager:
                                             continue
                                         self.store.save_event(event)
                                         self.store.touch_session(room_id, "connected")
-                                    except json.JSONDecodeError:
+                                    except (json.JSONDecodeError, TypeError, ValueError, AttributeError):
                                         logger.warning(
                                             f"抖音弹幕事件JSON解析失败 room={room_id}: {raw[:300]}"
                                         )

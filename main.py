@@ -9,6 +9,7 @@ Copyright (c) 2023-2025 by Hmily, All Rights Reserved.
 Function: Record live stream video.
 """
 import asyncio
+import io
 import os
 import sys
 import builtins
@@ -29,6 +30,7 @@ import configparser
 import httpx
 from src import spider, stream
 from src.douyin_live_monitor import DouyinMonitorManager, extract_douyin_web_rid
+from src.collector_runtime import CollectorRuntime
 from src.proxy import ProxyDetector
 from src.utils import logger
 from src import utils
@@ -41,8 +43,8 @@ from ffmpeg_install import (
 
 BASE_VERSION = "v4.0.7"
 MOD_NAME = "郑老师魔改版"
-MOD_VERSION = "v1.0.0"
-MOD_BUILD = "ZL-DLR-20260928-01"
+MOD_VERSION = "v1.1.0"
+MOD_BUILD = "ZL-DLR-20260930-02"
 version = f"{BASE_VERSION} / {MOD_NAME} {MOD_VERSION}"
 platforms = ("\n国内站点：抖音|快手|虎牙|斗鱼|YY|B站|小红书|bigo|blued|网易CC|千度热播|猫耳FM|Look|TwitCasting|百度|微博|"
              "酷狗|花椒|流星|Acfun|畅聊|映客|音播|知乎|嗨秀|VV星球|17Live|浪Live|漂漂|六间房|乐嗨|花猫|淘宝|京东|咪咕|连接|来秀"
@@ -71,6 +73,7 @@ start_display_time = datetime.datetime.now()
 global_proxy = False
 recording_time_list = {}
 douyin_monitor_manager = None
+collector_runtime = None
 script_path = os.path.split(os.path.realpath(sys.argv[0]))[0]
 config_file = f'{script_path}/config/config.ini'
 url_config_file = f'{script_path}/config/URL_config.ini'
@@ -398,7 +401,7 @@ def clear_record_info(record_name: str, record_url: str) -> None:
 
 def ensure_douyin_monitor(record_url: str, anchor_name: str, room_json: dict | None = None) -> None:
     """Start comment/viewer collection for a Douyin room without blocking video recording."""
-    global douyin_monitor_manager
+    global douyin_monitor_manager, collector_runtime
     try:
         if not douyin_monitor_enabled:
             return
@@ -412,6 +415,10 @@ def ensure_douyin_monitor(record_url: str, anchor_name: str, room_json: dict | N
         if not os.path.isabs(db_path):
             db_path = os.path.join(script_path, db_path)
 
+        if collector_runtime is None and douyin_monitor_url == "http://127.0.0.1:8757":
+            collector_runtime = CollectorRuntime(script_path)
+        if collector_runtime is not None:
+            collector_runtime.ensure_started()
         if douyin_monitor_manager is None:
             douyin_monitor_manager = DouyinMonitorManager(
                 collector_url=douyin_monitor_url,
@@ -1861,8 +1868,9 @@ def read_config_value(config_parser: configparser.RawConfigParser, section: str,
         return config_parser.get(section, option)
     except (configparser.NoSectionError, configparser.NoOptionError):
         config_parser.set(section, option, str(default_value))
-        with open(config_file, 'w', encoding=text_encoding) as f:
-            config_parser.write(f)
+        buffer = io.StringIO()
+        config_parser.write(buffer)
+        utils.atomic_write_text(config_file, buffer.getvalue(), encoding=text_encoding)
         return default_value
 
 
