@@ -28,8 +28,12 @@ jobs:
       - name: Build installer
         shell: pwsh
         run: |
-          if (!(Test-Path 'C:/Program Files (x86)/NSIS/makensis.exe')) { choco install nsis -y --no-progress }
-          & 'C:/Program Files (x86)/NSIS/makensis.exe' /NOCD packaging/installer.nsi
+          Invoke-WebRequest 'https://github.com/electron-userland/electron-builder-binaries/releases/download/nsis-3.0.4.1/nsis-3.0.4.1.7z' -OutFile nsis.7z
+          7z x nsis.7z -onsis -y
+          if ($LASTEXITCODE) { throw 'NSIS extraction failed' }
+          $compiler = (Get-ChildItem nsis -Filter makensis.exe -Recurse | Select-Object -First 1).FullName
+          if (!$compiler) { throw 'NSIS compiler missing' }
+          & $compiler /NOCD packaging/installer.nsi
           if ($LASTEXITCODE) { throw 'NSIS build failed' }
       - name: Test installation and application
         shell: pwsh
